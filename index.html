@@ -1,0 +1,370 @@
+<html>
+<head>
+<title>England to China Cycling Calendar Map</title>
+<link rel="stylesheet" href="bower_components/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" type="text/css" href="css/clndr.css"/>
+<!-- bower:js -->
+<script src="bower_components/jquery/dist/jquery.js"></script>
+<script src="bower_components/moment/moment.js"></script>
+<script src="bower_components/clndr/clndr.min.js"></script>
+<script src="bower_components/leaflet/dist/leaflet.js"></script>
+<script src="bower_components/leaflet/dist/leaflet-src.js"></script>
+<script src="bower_components/underscore/underscore.js"></script>
+<!-- endbower -->
+<script src="bower_components/leaflet.markercluster/dist/leaflet.markercluster-src.js"></script>
+<link rel="stylesheet" href="bower_components/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+<link rel="stylesheet" href="bower_components/leaflet.markercluster/dist/MarkerCluster.css"/>
+<style type="text/css">
+#map-canvas {
+	width: 100%;
+	height: 400px;
+}
+</style>
+</head>
+<body>
+<div id="map-canvas"></div>
+<div id="calendar">
+	<div id="full-clndr" class="clearfix">
+	</div>
+</div>
+
+<script type="text/template" id="full-clndr-template">
+<div class="clndr-controls">
+	<div class="clndr-previous-button">&lt;</div>
+	<div class="clndr-next-button">&gt;</div>
+	<div class="current-month"><span class="current-month-year"><%= month %> <%= year %></span> (<small class="map-overview">map overview</small>)</div>
+
+</div>
+<div class="clndr-grid">
+	<div class="days-of-the-week clearfix">
+	<% _.each(daysOfTheWeek, function(day) { %>
+		<div class="header-day"><%= day %></div>
+	<% }); %>
+	</div>
+	<div class="days">
+	<% _.each(days, function(day) { %>
+		<div class="<%= day.classes %>" id="<%= day.id %>">
+			<span class="day-number"><%= day.day %></span>
+			<!--
+			<br/>
+			<% _.each(day.events, function(event) { %>
+			<br/>
+			<span class="day-event"><%= event.title %></span>
+			<% }); %>
+			-->
+		</div>
+	<% }); %>
+	</div>
+</div>
+<div class="event-listing">
+	<div class="event-listing-title">EVENTS THIS MONTH</div>
+	<% _.each(eventsThisMonth, function(event) { %>
+	<div class="event-item" data-eventid="<%= event.id %>">
+		<div class="event-item-date"><%= event.start %> - <%= event.end %></div>
+		<div class="event-item-name"><%= event.title %></div>
+		<div class="event-item-location"><%= event.location %></div>
+	</div>
+	<% }); %>
+</div>
+</script>
+<!--
+<p>
+<label for="calendar-id">
+	<input id="calendar-id" name="calendar-id" type="text"></input>
+	<button id="get-calendar-button">Get calendar events</button>
+</label>
+</p>
+-->
+
+<script type="text/javascript">
+var clndr = null;
+var map = null;
+var mapLayers = [];
+var eventMarker = null; // Marker with calendar event as property
+
+// renderCalendarEvents
+function renderCalendarEvents(calendar) {
+	// Start a new clndr
+	clndr = null;
+	var clndrEvents = [];
+	var firstEvent = calendar.events[0];
+	var lastEvent = calendar.events[calendar.events.length - 1];
+
+	// Marker cluster group
+	var calendarMarkers = [];
+	var calendarClusterMarkers = L.markerClusterGroup();
+
+	// Add the overall path
+	var calenderLayer = L.geoJson().addTo(map);
+	calenderLayer.addData(calendar.geoJson);
+	mapLayers.push(calenderLayer);
+
+	// Handle marker click event
+	var onMarkerClick = function(e) {
+		if (e.target) {
+			if (e.target.options.calendarEvent) {
+				var calendarEvent = e.target.options.calendarEvent;
+				var startDate = moment(calendarEvent.start.date, "YYYY-MM-DD");
+
+				// Set the clndr to current month
+				if (clndr) {
+					clndr.setYear(startDate.year()).setMonth(startDate.month());
+				}
+			}
+		}
+	};
+
+	// Now add events that have location as marker
+	if (calendar.events) {
+		calendar.events.forEach(function(event) {
+			var calendarMarker = null;
+			var clndrEvent = {
+				id: event.id,
+				start: event.start.date,
+				end: event.end.date,
+				title: event.summary
+			};
+				
+			if (event.geoJson) {
+				// Marker with event info as property
+				calendarMarker = new eventMarker(
+					[event.geoJson.geometry.coordinates[1], event.geoJson.geometry.coordinates[0]],
+					{
+						calendarEvent: event
+					}
+				);
+				calendarMarker.bindPopup('<p>'+event.summary+'<br/>Start:'+event.start.date+'<br/>End:'+event.end.date+'</p>');
+				calendarMarker.on('click', onMarkerClick);
+				//calendarMarker.addTo(map);
+				calendarMarkers.push(calendarMarker);
+
+				clndrEvent['marker'] = calendarMarker;
+			}
+
+			clndrEvents.push(clndrEvent);
+		});
+	}
+	calendarClusterMarkers.addLayers(calendarMarkers);
+	map.addLayer(calendarClusterMarkers);
+	// Add calendarClusterMarkers to mapLayer
+	mapLayers.push(calendarClusterMarkers);
+
+	var originalBounds = calenderLayer.getBounds();
+	map.fitBounds(calenderLayer.getBounds());
+
+
+	// Get bounds for events with marker
+	var getEventsBound = function(events, nextEvents) {
+		var bounds = []
+		events.forEach(function(event) {
+			if (event.marker) {
+				bounds.push(event.marker.getLatLng());
+			}
+		});
+
+		// Use the next events if current events doesn't have bound
+		if (bounds.length == 0 && nextEvents) {
+			nextEvents.forEach(function(event) {
+				if (event.marker) {
+					bounds.push(event.marker.getLatLng());
+				}
+			});
+		}
+
+		// Use the default bounds if there is no events bounds at all
+		if (bounds.length == 0) {
+			bounds = originalBounds;
+		}
+
+		return bounds;
+	};
+
+	// clndr
+	clndr = $('#full-clndr').clndr({
+		template: $('#full-clndr-template').html(),
+		events: clndrEvents,
+		multiDayEvents: {
+			startDate: 'start',
+			endDate: 'end',
+			singleDay: 'date'
+		},
+		clickEvents: {
+			click: function(target) {
+				// Zoom into the event location
+				if (target.events) {
+					map.fitBounds(getEventsBound(target.events, this.eventsThisMonth));
+
+					// Open the marker popup
+					_.each(target.events, function(event) {
+						if (event.marker) {
+							event.marker.openPopup();
+						}
+					});
+				}
+			},
+			onMonthChange: function(month) {
+				if (this.eventsThisMonth) {
+					map.fitBounds(getEventsBound(this.eventsThisMonth));
+				}
+			},
+			today: function(month) {
+			}
+		},
+		constraints: {
+			startDate: firstEvent.start.date,
+			endDate: lastEvent.end.date
+		},
+		forceSixRows: true,
+		doneRendering: function(event) {
+			// Reset the month view if the current month is clicked
+			$('.current-month-year').on('click', function(event) {
+				if (clndr) {
+					map.fitBounds(getEventsBound(clndr.eventsThisMonth));
+				}
+			});
+
+			// Reset the map bound if over view is clicked
+			$('.map-overview').on('click', function(event) {
+				map.fitBounds(originalBounds);
+			});
+
+			// Event item click handler - it will zoom the map right into the marker
+			$('.event-item').on('click', function(event) {
+					var eventItem = $(event.delegateTarget);
+					var eventId = eventItem.data('eventid');
+
+					// Get the clndr current months events
+					if (clndr.eventsThisMonth) {
+						_.each(clndr.eventsThisMonth, function(event) {
+							if (event.id == eventId) {
+								if (event.marker) {
+								var marker = event.marker;
+
+								// Set the view and the open popup
+								map.setView(marker.getLatLng(), 10);
+								marker.openPopup();
+								}
+							}
+						});
+					}
+			});
+		}
+	});
+
+}
+
+// Clear map
+function resetMapAndClndr() {
+	// Clear the map layers
+	if (map) {
+		_.each(mapLayers, function(layer) {
+			map.removeLayer(layer);
+		});
+	}
+
+	// Clear the calendar
+	if (clndr) {
+		// Remove all events
+		clndr.removeEvents(function(event) {
+			return event.id;
+		});
+
+		clndr = null;
+	}
+}
+
+// Init map
+function initMap() {
+	// Map
+	var defaultZoom = 10;
+	var home = {
+		lat: 52.12345,
+		lng: 0.0001 
+	}
+
+	// Leaflet map
+	map = L.map("map-canvas");
+	map.setView(
+		home,
+		defaultZoom
+	);
+
+	// Set the tile
+	L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+		attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+	}).addTo(map);
+
+	// Extend the original marker, so it can take in a calendar event as property
+	eventMarker = L.Marker.extend({
+		options: {
+			calendarEvent: null
+		}
+	});
+}
+
+function getCalendarData(calendarId) {
+	// Get the calendar data from server
+	var dataUrl = 'data/'+calendarId+'.json';
+	$.getJSON(dataUrl)
+		.done(function(data) {
+			// Clear the map first
+			resetMapAndClndr();
+
+			// Render data
+			renderCalendarEvents(data);
+		})
+		.fail(function(jqxhr, status, error) {
+			// If there is no such file, then we try to generate a new one
+			if (jqxhr.status == 404) {
+				$.getJSON('http://www.cluelesscycling.com:4000/getCalendar/'+calendarId)
+				.done(function(data) {
+					if (data.statusCode == 200) {
+						getCalendarData(calendarId);
+					}
+				})
+				.fail(function(jqxhr, status, error) {
+					console.log("failed");
+					console.log(error);
+				});
+			} else {
+				console.log(error);
+				alert("There is something wrong loading data");
+			}
+		});
+}
+
+function waittingforCalendar() {
+	// Disable the input and button
+	$('#get-calendar-button').prop('disabled', true);
+}
+
+// Bind the nessary events
+function initEventHandlers() {
+	// Able to get new event
+	$('#get-calendar-button').on('click', function(e) {
+			var calendarId = $('#calendar-id').val();
+			if (calendarId) {
+				getCalendarData(calendarId);
+
+				// Load calendar progress
+				waittingforCalendar();
+			}
+	});
+}
+
+// Everything is ready
+$(document).ready(function() {
+	// Map
+	initMap();
+
+	// Init events handlers
+	initEventHandlers();
+
+	// Get the default event
+	var defaultCalendarId = 'england-to-china-route';
+	getCalendarData(defaultCalendarId);
+
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+#full-clndr
+{
+  width: 100%;
+  background-color: @light-gray;
+  font-weight: 700;
+
+  .clndr-controls
+  {
+    background-color: @dark-gray;
+    color: white;
+    text-align: center;
+
+    .clndr-previous-button
+    {
+      float: left;
+      text-align: left;
+    }
+
+    .clndr-next-button
+    {
+      float: right;
+      text-align: right;
+    }
+
+.current-month
+{
+    padding: 14px;
+	&:hover
+	{
+		cursor: pointer;
+	}
+	.map-overview
+	{
+	}
+}
+
+    .clndr-previous-button, .clndr-next-button
+    {
+    padding: 14px 50px 14px 50px;
+      background-color: @blue;
+      cursor: pointer;
+      &:hover
+      {
+        opacity: 0.5;
+      }
+	&.inactive
+	{
+		opacity:0.2;
+	}
+    }
+  }
+
+  .clndr-grid
+  {
+    float: left;
+    width: 65%;
+    border-right: 2px solid white;
+
+    .days-of-the-week
+    {
+      width: 100%;
+      background-color: @dark-blue;
+
+      .header-day
+      {
+        float: left;
+        width: 14.2857%;
+        padding: 14px;
+        text-align: center;
+        color: white;
+      }
+    }
+
+    .days
+    {
+      width: 100%;
+
+      .day, .empty
+      {
+        float: left;
+        width: 14.2857%;
+        height: 66px;
+        padding: 24px 0;
+
+        text-align: center;
+        color: #4f4f4f;
+        background-color: @light-gray;
+        border-bottom: 2px solid white;
+
+        background-image: url('./triangle.svg');
+        background-size: cover;
+        background-position: center;
+
+	&:hover
+	{
+		opacity: 0.5;
+	}
+
+        &.event
+        {
+          .day-number
+          {
+            padding-bottom: 4px;
+            border-bottom: 2px solid @dark-blue;
+          }
+		cursor: pointer;
+        }
+
+        &.adjacent-month
+        {
+          .day-number
+          {
+            opacity: 0.3;
+          }
+        }
+      }
+
+      .today
+      {
+        background-color: white;
+        background-image: none;
+      }
+
+    }
+  }
+
+  .event-listing
+  {
+    float: left;
+    width: 35%;
+
+    .event-listing-title
+    {
+      padding: 14px;
+      background-color: @dark-blue;
+      text-align: center;
+      color: white;
+      letter-spacing: 1px;
+    }
+    .event-item
+    {
+      padding: 14px;
+      color: #4f4f4f;
+
+        &:hover {
+            cursor: pointer;
+        }
+    }
+    .event-item-location
+    {
+      font-weight: 400;
+    }
+  }
+}
